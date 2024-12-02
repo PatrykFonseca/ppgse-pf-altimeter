@@ -75,7 +75,13 @@ uint32_t MS5611::readRawData(uint8_t cmd) {
 float MS5611::calculateTemperature(uint32_t D2) {
   int32_t dT = D2 - (prom[4] * 256);
   float temperature = 2000 + ((dT * prom[5]) / 8388608.0);
-  return temperature / 100.0; // Convert to Celsius
+  temperature = temperature / 100.0;
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.println(" °C");
+
+  return temperature; // Convert to Celsius
 }
 
 float MS5611::calculatePressure(uint32_t rawPressure, uint32_t rawTemperature) {
