@@ -9,41 +9,49 @@
 #define CMD_CONVERT_D2 0x50
 #define CMD_READ_ADC 0x00
 
-MS5611::MS5611(uint8_t address) {
+MS5611::MS5611(uint8_t address)
+{
   _address = address;
 }
 
-bool MS5611::begin() {
+bool MS5611::begin()
+{
   Wire.begin();
   resetSensor();
   delay(10);
   return readCalibrationData();
 }
 
-void MS5611::resetSensor() {
+void MS5611::resetSensor()
+{
   Wire.beginTransmission(_address);
   Wire.write(CMD_RESET);
   Wire.endTransmission();
   delay(3); // Wait for reset to complete
 }
 
-bool MS5611::readCalibrationData() {
-  for (uint8_t i = 0; i < 6; i++) {
+bool MS5611::readCalibrationData()
+{
+  for (uint8_t i = 0; i < 6; i++)
+  {
     prom[i] = readPromValue(i + 1);
-    if (prom[i] == 0) {
+    if (prom[i] == 0)
+    {
       return false; // Failed to read calibration data
     }
   }
   return true;
 }
 
-uint16_t MS5611::readPromValue(uint8_t reg) {
+uint16_t MS5611::readPromValue(uint8_t reg)
+{
   Wire.beginTransmission(_address);
   Wire.write(CMD_READ_PROM + (reg * 2));
   Wire.endTransmission();
   Wire.requestFrom(_address, (uint8_t)2);
 
-  if (Wire.available() < 2) {
+  if (Wire.available() < 2)
+  {
     return 0; // Error
   }
 
@@ -51,15 +59,18 @@ uint16_t MS5611::readPromValue(uint8_t reg) {
   return value;
 }
 
-String MS5611::getPromValues() {
-    String promValues = "";
-    for (uint8_t i = 0; i < 6; i++) {
-        promValues += "prom" + String(i + 1) + ":" + String(prom[i]) + ";";
-    }
-    return promValues;
+String MS5611::getPromValues()
+{
+  String promValues = "";
+  for (uint8_t i = 0; i < 6; i++)
+  {
+    promValues += "prom" + String(i + 1) + ":" + String(prom[i]) + ";";
+  }
+  return promValues;
 }
 
-uint32_t MS5611::readRawData(uint8_t cmd) {
+uint32_t MS5611::readRawData(uint8_t cmd)
+{
   Wire.beginTransmission(_address);
   Wire.write(cmd);
   Wire.endTransmission();
@@ -72,7 +83,8 @@ uint32_t MS5611::readRawData(uint8_t cmd) {
   Wire.endTransmission();
   Wire.requestFrom(_address, (uint8_t)3);
 
-  if (Wire.available() < 3) {
+  if (Wire.available() < 3)
+  {
     return 0; // Error
   }
 
@@ -80,19 +92,17 @@ uint32_t MS5611::readRawData(uint8_t cmd) {
   return value;
 }
 
-float MS5611::calculateTemperature(uint32_t D2) {
+float MS5611::calculateTemperature(uint32_t D2)
+{
   int32_t dT = D2 - (prom[4] * 256);
   float temperature = 2000 + ((dT * prom[5]) / 8388608.0);
   temperature = temperature / 100.0;
 
-  // Serial.print("Temperature: ");
-  // Serial.print(temperature);
-  // Serial.println(" °C");
-
   return temperature; // Convert to Celsius
 }
 
-float MS5611::calculatePressure(uint32_t rawPressure, uint32_t rawTemperature) {
+float MS5611::calculatePressure(uint32_t rawPressure, uint32_t rawTemperature)
+{
   int32_t dT = rawTemperature - (prom[4] * 256);
   int64_t OFF = (int64_t)prom[1] * 65536 + ((int64_t)dT * prom[3]) / 128;
   int64_t SENS = (int64_t)prom[0] * 32768 + ((int64_t)dT * prom[2]) / 256;

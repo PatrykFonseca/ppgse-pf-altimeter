@@ -44,16 +44,16 @@ int count = 0;                 // Loop counter
 uint32_t systemMillis = 0;
 
 sensors_event_t accel, gyro, temp;
+uint32_t rawPressure;    // Read raw pressure
+uint32_t rawTemperature; // Read raw temperature
+float pressureValue;
 
 struct SensorData
 {
-  uint32_t millis;                 // Timestamp in milliseconds
-  uint32_t loopCount;              // Loop counter
-  uint32_t rawPressure;            // Raw pressure
-  uint32_t rawTemperature;         // Raw temperature
+  uint32_t millis;      // Timestamp in milliseconds
+  uint32_t rawPressure; // Raw pressure
+  float pressureValue;
   float accel_x, accel_y, accel_z; // Accelerometer data
-  float gyro_x, gyro_y, gyro_z;    // Gyroscope data
-  float temp_c;                    // Temperature in Celsius
 };
 
 uint32_t loopCounter = 0;       // Global loop counter
@@ -66,17 +66,12 @@ void sendSensorData()
 
   // Populate the structure
   SensorData data = {
-      systemMillis,             // Current timestamp
-      loopCounter,              // Loop counter
-      ms5611.readRawData(0x40), // Raw pressure
-      ms5611.readRawData(0x50), // Raw temperature
-      accel.acceleration.x,     // Accelerometer X
-      accel.acceleration.y,     // Accelerometer Y
-      accel.acceleration.z,     // Accelerometer Z
-      gyro.gyro.x,              // Gyroscope X
-      gyro.gyro.y,              // Gyroscope Y
-      gyro.gyro.z,              // Gyroscope Z
-      temp.temperature          // Temperature in Celsius
+      systemMillis, // Current timestamp
+      rawPressure,
+      pressureValue,
+      accel.acceleration.x, // Accelerometer X
+      accel.acceleration.y, // Accelerometer Y
+      accel.acceleration.z, // Accelerometer Z
   };
 
   // Send the header first
@@ -85,12 +80,12 @@ void sendSensorData()
   // Send the structure as bytes
   HC12.write((uint8_t *)&data, sizeof(SensorData)); // Cast structure to byte array
 
-  *activeBuffer += String(systemMillis) + ";" + String(loopCounter) + ";" +
-                   String(data.rawPressure) + ";" + String(data.rawTemperature) + ";" +
-                   String(data.accel_x) + ";" + String(data.accel_y) + ";" +
-                   String(data.accel_z) + ";" + String(data.gyro_x) + ";" +
-                   String(data.gyro_y) + ";" + String(data.gyro_z) + ";" +
-                   String(data.temp_c) + "\n";
+  *activeBuffer += String(systemMillis) + ";" +
+                   String(data.rawPressure) + ";" +
+                   String(data.accel_x) + ";" +
+                   String(data.accel_y) + ";" +
+                   String(data.accel_z) + ";" +
+                   String(data.pressureValue) + "\n";
 }
 
 void printToScreen(String message)
@@ -163,8 +158,7 @@ void setup()
   else
   {
     printToScreen("Failed to create log file.");
-    while (1)
-      ; // Halt if log file creation fails
+    delay(5000);
   }
 
   // Initialize Altimeter
@@ -236,16 +230,15 @@ void loop()
   systemMillis = millis();
 
   // Read raw data from the MS5611 sensor
-  uint32_t rawPressure = ms5611.readRawData(0x40);    // Read raw pressure
-  uint32_t rawTemperature = ms5611.readRawData(0x50); // Read raw temperature
+  rawPressure = ms5611.readRawData(0x40);    // Read raw pressure
+  rawTemperature = ms5611.readRawData(0x50); // Read raw temperature
 
   /* Get new sensor events with the readings */
-  // sensors_event_t accel, gyro, temp;
   mpu.getEvent(&accel, &gyro, &temp);
 
   // Calculate temperature and absolute pressure
-  ms5611.calculateTemperature(rawTemperature);
-  float pressure = ms5611.calculatePressure(rawPressure, rawTemperature);
+  // ms5611.calculateTemperature(rawTemperature);
+  pressureValue = ms5611.calculatePressure(rawPressure, rawTemperature);
 
   // // Calculate relative pressure (difference from baseline)
   // float relativePressure = pressure - baselinePressure;
@@ -254,39 +247,6 @@ void loop()
   // float absoluteHeight = (T0 / g) * R * log(P0 / pressure); // Absolute height
   // float relativeHeight = absoluteHeight - baselineHeight;   // Relative height
 
-  // // float accelX = accel.acceleration.x - baselineX;
-  // // float accelY = accel.acceleration.y - baselineY;
-  // // float accelZ = accel.acceleration.z - baselineZ;
-  // float accelX = accel.acceleration.x;
-  // float accelY = accel.acceleration.y;
-  // float accelZ = accel.acceleration.z;
-
-  // // Convert float to String
-  // String absoluteHeightStr = String(absoluteHeight, 4); // 2 decimal places
-  // String relativeHeightStr = String(relativeHeight, 4);
-  // String accelXStr = String(accelX, 4);
-  // String accelYStr = String(accelY, 4);
-  // String accelZStr = String(accelZ, 4);
-
-  // String stats = "\nmillis:" + millisString +
-  //                       ";absoluteHeightStr:" + absoluteHeightStr +
-  //                       ";relativeHeightStr:" + relativeHeightStr +
-  //                       ";accelXStr:" + accelXStr +
-  //                       ";accelYStr:" + accelYStr +
-  //                       ";accelZStr:" + accelZStr +
-  //                       ";count:" + (String)count;
-
-  // Append stats to the active buffer
-
-  // Format all the data into a single string
-  // String stats = "millis:" + millisString +
-  //                 ";pressure:" + String(rawPressure) +
-  //                 ";accel_x:" + String(accel.acceleration.x) +
-  //                 ";accel_y:" + String(accel.acceleration.y) +
-  //                 ";accel_z:" + String(accel.acceleration.z) +
-  //                 ";count:" + (String)count;
-
-  // HC12.println(stats);
   sendSensorData();
   count++;
 
@@ -313,7 +273,7 @@ void loop()
     xTaskCreatePinnedToCore(saveDataTask, "SaveDataTask", 4096, writeBuffer, 1, NULL, 1);
   }
 
-  Serial.println(count);
+  // Serial.println(count);
 
   // Stop after loopThreshold loops
   // if (count >= loopThreshold) {

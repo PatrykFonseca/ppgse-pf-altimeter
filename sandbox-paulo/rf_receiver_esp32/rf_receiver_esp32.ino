@@ -9,15 +9,23 @@ HardwareSerial HC12(1); // Use UART1 for HC-12
 
 const uint16_t HEADER = 0xAA55; // Unique header to identify the packet
 
+
 struct SensorData {
   uint32_t millis;
-  uint32_t loopCount;
   uint32_t rawPressure;
-  uint32_t rawTemperature;
+  float pressureValue;
   float accel_x, accel_y, accel_z;
-  float gyro_x, gyro_y, gyro_z;
-  float temp_c;
 };
+
+// struct SensorData {
+//   uint32_t millis;
+//   uint32_t loopCount;
+//   uint32_t rawPressure;
+//   uint32_t rawTemperature;
+//   float accel_x, accel_y, accel_z;
+//   float gyro_x, gyro_y, gyro_z;
+//   float temp_c;
+// };
 
 
 // SensorData receivedData;
@@ -40,16 +48,11 @@ void receiveSensorData() {
     // Debug output
     // Serial.print("Received Data:");
     Serial.print(">Millis:"); Serial.println(receivedData.millis);
-    Serial.print(">Loop Count:"); Serial.println(receivedData.loopCount);
     Serial.print(">Raw Pressure:"); Serial.println(receivedData.rawPressure);
-    Serial.print(">Raw Temperature:"); Serial.println(receivedData.rawTemperature);
+    Serial.print(">Pressure Value:"); Serial.println(receivedData.pressureValue);
     Serial.print(">Accel X:"); Serial.println(receivedData.accel_x);
     Serial.print(">Accel Y:"); Serial.println(receivedData.accel_y);
     Serial.print(">Accel Z:"); Serial.println(receivedData.accel_z);
-    Serial.print(">Gyro X:"); Serial.println(receivedData.gyro_x);
-    Serial.print(">Gyro Y:"); Serial.println(receivedData.gyro_y);
-    Serial.print(">Gyro Z:"); Serial.println(receivedData.gyro_z);
-    Serial.print(">Temperature (C):"); Serial.println(receivedData.temp_c);
   }
 }
 
