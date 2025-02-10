@@ -8,17 +8,19 @@
 // const float g = 9.80665;  // Acceleration due to gravity (m/s^2)
 // const float R = 287.05;   // Specific gas constant for dry air (J/(kg·K))
 
-void setupAltimeter(MS5611 &ms5611, float &baselinePressure, float &baselineHeight) {
+void setupAltimeter(MS5611 &ms5611, float &baselinePressure, float &baselineHeight)
+{
   Serial.println("Calibrating altimeter...");
   unsigned long startTime = millis();
   float pressureSum = 0.0;
   float heightSum = 0.0;
   int count = 0;
 
-  while (millis() - startTime < 2000) { // Read for 2 seconds
+  while (millis() - startTime < 2000)
+  { // Read for 2 seconds
     uint32_t rawPressure = ms5611.readRawData(0x40);
     uint32_t rawTemperature = ms5611.readRawData(0x50);
-    
+
     // Calculate compensated pressure
     float pressure = ms5611.calculatePressure(rawPressure, rawTemperature);
     pressureSum += pressure;

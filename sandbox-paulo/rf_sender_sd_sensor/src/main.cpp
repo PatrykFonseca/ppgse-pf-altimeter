@@ -8,11 +8,14 @@
 #include <SD.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <Constants.h>
 
 // HC-12 configuration
 #define HC12_TX_PIN 17
 #define HC12_RX_PIN 16
 #define HC12_SET_PIN 5
+
+#define BUFFER_SIZE 10 // Number of samples for the moving average
 
 HardwareSerial HC12(1); // Use UART1 for HC-12
 MS5611 ms5611(0x77);
@@ -23,6 +26,12 @@ const String logFileName = "/log.txt"; // Log file name
 
 float baselinePressure = 0.0, baselineHeight = 0.0;
 float baselineX = 0.0, baselineY = 0.0, baselineZ = 0.0;
+float speed = 1234.12;
+float height = 5678.56;
+
+float buffer[BUFFER_SIZE]; // Buffer to store values
+int bufferIndex = 0;       // Current position in the buffer
+float sum = 0;             // Running sum for fast average calculation
 
 int currentLine = 0;       // Current line position
 const int lineHeight = 20; // Line height in pixels
@@ -41,7 +50,8 @@ const int loopThreshold = 500; // Total number of loops
 const int saveThreshold = 100; // Save data every 100 loops
 int count = 0;                 // Loop counter
 
-uint32_t systemMillis = 0;
+uint32_t previousMillis = 0; // Store last loop time
+uint32_t loopTime = 0;
 
 sensors_event_t accel, gyro, temp;
 uint32_t rawPressure;    // Read raw pressure
@@ -50,9 +60,11 @@ float pressureValue;
 
 struct SensorData
 {
-  uint32_t millis;      // Timestamp in milliseconds
-  uint32_t rawPressure; // Raw pressure
+  uint32_t millis; // Timestamp in milliseconds
+  // uint32_t rawPressure; // Raw pressure
   float pressureValue;
+  float speed;
+  float height;
   float accel_x, accel_y, accel_z; // Accelerometer data
 };
 
@@ -66,9 +78,10 @@ void sendSensorData()
 
   // Populate the structure
   SensorData data = {
-      systemMillis, // Current timestamp
-      rawPressure,
+      loopTime, // Current timestamp
       pressureValue,
+      speed,
+      height,
       accel.acceleration.x, // Accelerometer X
       accel.acceleration.y, // Accelerometer Y
       accel.acceleration.z, // Accelerometer Z
@@ -80,12 +93,13 @@ void sendSensorData()
   // Send the structure as bytes
   HC12.write((uint8_t *)&data, sizeof(SensorData)); // Cast structure to byte array
 
-  *activeBuffer += String(systemMillis) + ";" +
-                   String(data.rawPressure) + ";" +
+  *activeBuffer += String(loopTime) + ";" +
+                   String(data.pressureValue) + ";" +
+                   String(data.speed) + ";" +
+                   String(data.height) + ";" +
                    String(data.accel_x) + ";" +
                    String(data.accel_y) + ";" +
-                   String(data.accel_z) + ";" +
-                   String(data.pressureValue) + "\n";
+                   String(data.accel_z) + "\n";
 }
 
 void printToScreen(String message)
@@ -112,7 +126,7 @@ void addLogToFile(String *buffer)
   }
   else
   {
-    printToScreen("Error writing to log file.");
+    // printToScreen("Error writing to log file.");
   }
 }
 
@@ -141,11 +155,15 @@ void setup()
 
   if (!SD.begin(4, SPISD, 1000000))
   { // Frequency of 1 MHz
-    printToScreen("Card failed, or not present");
-    while (1)
-      ; // Halt if SD card initialization fails
+    printToScreen("Card failed");
+    // while (1)
+    //   ; // Halt if SD card initialization fails
+    delay(2000);
   }
-  printToScreen("TF card initialized.");
+  else
+  {
+    printToScreen("Card initialized.");
+  }
 
   // Create or open the log file
   File logFile = SD.open(logFileName, FILE_WRITE);
@@ -185,6 +203,8 @@ void setup()
   // Serial.println("Setting up accelerometer");
   printToScreen("Setting up accelerometer");
   setupAccelerometer(mpu, baselineX, baselineY, baselineZ);
+  printToScreen("baselinePressure: " + String(baselinePressure, 4));
+  printToScreen("baselineHeight: " + String(baselineHeight, 4));
 
   String initialStats = "baselinePressure:" + String(baselinePressure, 4) +
                         ";baselineHeight:" + String(baselineHeight, 4) +
@@ -219,6 +239,13 @@ void setup()
   printToScreen("HC-12 configured and ready.");
 
   delay(2000);
+
+  // Initialize buffer with zeros
+  for (int i = 0; i < BUFFER_SIZE; i++)
+  {
+    buffer[i] = 0.0;
+  }
+
   printToScreen("Starting");
   delay(500);
 }
@@ -227,7 +254,8 @@ void loop()
 {
 
   // String millisString = (String)millis();
-  systemMillis = millis();
+  loopTime = millis() - previousMillis; // Calculate loop duration
+  previousMillis = millis();            // Update previous time                         // Update previous time
 
   // Read raw data from the MS5611 sensor
   rawPressure = ms5611.readRawData(0x40);    // Read raw pressure
@@ -239,6 +267,13 @@ void loop()
   // Calculate temperature and absolute pressure
   // ms5611.calculateTemperature(rawTemperature);
   pressureValue = ms5611.calculatePressure(rawPressure, rawTemperature);
+  height = (T0 / g) * R * log(P0 / pressureValue);
+
+  sum -= buffer[bufferIndex];                    // Subtract the oldest value from the sum
+  buffer[bufferIndex] = height;                  // Store new value in the buffer
+  sum += height;                                 // Add new value to the sum
+  bufferIndex = (bufferIndex + 1) % BUFFER_SIZE; // Move to the next index, circular buffer
+  height = sum / BUFFER_SIZE;                    // Calculate the moving average
 
   // // Calculate relative pressure (difference from baseline)
   // float relativePressure = pressure - baselinePressure;
